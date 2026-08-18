@@ -1,0 +1,192 @@
+:root {
+  --pico-font-family: 'Inter', system-ui, sans-serif;
+  --brand: #2d6a4f;
+  --brand-light: #74c69d;
+  --brand-bg: #d8f3dc;
+  --brand-dark: #1b4332;
+}
+
+body {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+}
+
+header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+header .leaf-icon {
+  font-size: 2.5rem;
+  display: block;
+  margin-bottom: 0.25rem;
+}
+header h1 {
+  margin-bottom: 0.35rem;
+  color: var(--brand);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+header p {
+  color: var(--pico-muted-color);
+  font-size: 0.95rem;
+  max-width: 420px;
+  margin: 0 auto;
+}
+
+/* Upload box */
+.upload-card {
+  border: 2px dashed var(--brand-light);
+  border-radius: 14px;
+  padding: 1.75rem 1.25rem;
+  text-align: center;
+  background: #fafffc;
+  transition: border-color 0.2s ease, background 0.2s ease;
+  display: block;
+  cursor: pointer;
+}
+.upload-card:hover {
+  border-color: var(--brand);
+  background: #f0faf4;
+}
+.upload-card input[type=file] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.upload-card .upload-icon {
+  font-size: 1.8rem;
+  display: block;
+  margin-bottom: 0.4rem;
+}
+.upload-card small {
+  color: var(--pico-muted-color);
+}
+
+/* Image preview */
+#preview-wrap {
+  text-align: center;
+  margin-top: 1rem;
+  display: none;
+}
+#preview-img {
+  max-height: 220px;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+}
+
+/* Form fields */
+label[for=notes] {
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-top: 1.25rem;
+}
+textarea {
+  resize: vertical;
+}
+
+button[type=submit] {
+  background: var(--brand);
+  border-color: var(--brand);
+  font-weight: 600;
+  margin-top: 1rem;
+}
+button[type=submit]:hover {
+  background: var(--brand-dark);
+  border-color: var(--brand-dark);
+}
+
+/* Loading state */
+#loading {
+  display: none;
+  text-align: center;
+  margin-top: 1.5rem;
+  color: var(--brand-dark);
+  font-size: 0.9rem;
+}
+#loading .spinner {
+  width: 22px;
+  height: 22px;
+  border: 3px solid var(--brand-bg);
+  border-top-color: var(--brand);
+  border-radius: 50%;
+  display: inline-block;
+  margin-bottom: 0.5rem;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Result card */
+.result-card {
+  border-left: 4px solid var(--brand);
+  background: #fbfffc;
+  border-radius: 0 10px 10px 0;
+  padding: 1.25rem 1.5rem;
+  margin-top: 1.75rem;
+  animation: fadeIn 0.4s ease;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.badge {
+  display: inline-block;
+  background: var(--brand-bg);
+  color: var(--brand-dark);
+  padding: 0.25rem 0.8rem;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  margin-bottom: 0.6rem;
+}
+.result-card h3 {
+  margin: 0 0 0.5rem;
+  color: var(--brand-dark);
+}
+.result-card .confidence {
+  font-size: 0.88rem;
+  color: var(--pico-muted-color);
+  margin-bottom: 1rem;
+}
+.result-card h4 {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--brand);
+  margin-bottom: 0.5rem;
+}
+.result-card ul {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+.result-card li {
+  margin-bottom: 0.4rem;
+}
+
+/* Error state */
+.error-box {
+  color: #9b2c2c;
+  background: #fff5f5;
+  border: 1px solid #feb2b2;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin-top: 1.25rem;
+  font-size: 0.9rem;
+}
+
+footer {
+  text-align: center;
+  margin-top: 3rem;
+  font-size: 0.78rem;
+  color: var(--pico-muted-color);
+}
