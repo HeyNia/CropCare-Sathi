@@ -30,6 +30,13 @@
       <img id="preview-img" src="" alt="Preview">
     </div>
 
+    <label for="language">Response language</label>
+    <select id="language" name="language">
+      {% for code, name in languages.items() %}
+        <option value="{{ code }}" {% if code == selected_lang %}selected{% endif %}>{{ name }}</option>
+      {% endfor %}
+    </select>
+
     <label for="notes">Any notes? (optional)</label>
     <textarea id="notes" name="notes" rows="2"
       placeholder="e.g. leaves turning yellow for a week, seen after heavy rain...">{{ notes or "" }}</textarea>

@@ -43,8 +43,26 @@ Severity guide:
 - "medium": a real issue is present that should be addressed soon to prevent spread or worsening
 - "high": a serious issue that risks significant crop loss if not acted on quickly
 
+IMPORTANT: Write every text value in the JSON (diagnosis, confidence_note, regenerative_steps,
+crop_guess) in {language}. Keep the JSON keys themselves in English exactly as shown above —
+only the values should be translated. Use simple, clear language a farmer with no technical
+background can understand.
+
 Farmer's notes: {notes}
 """
+
+SUPPORTED_LANGUAGES = {
+    "en": "English",
+    "hi": "Hindi",
+    "pt": "Portuguese",
+    "ru": "Russian",
+    "zh": "Chinese (Simplified)",
+    "af": "Afrikaans",
+    "sw": "Swahili",
+    "bn": "Bengali",
+    "ta": "Tamil",
+    "te": "Telugu",
+}
 
 
 @app.route("/", methods=["GET", "POST"])
@@ -52,15 +70,18 @@ def diagnose():
     result = None
     error = None
     notes = ""
+    selected_lang = "en"
 
     if request.method == "POST":
         notes = request.form.get("notes", "").strip()
+        selected_lang = request.form.get("language", "en")
+        language_name = SUPPORTED_LANGUAGES.get(selected_lang, "English")
         image_file = request.files.get("image")
 
         if image_file:
             try:
                 img = Image.open(image_file.stream)
-                prompt = DIAGNOSIS_PROMPT.format(notes=notes or "none provided")
+                prompt = DIAGNOSIS_PROMPT.format(notes=notes or "none provided", language=language_name)
                 response = model.generate_content([prompt, img])
                 text = response.text.strip()
                 if text.startswith("```"):
@@ -69,7 +90,14 @@ def diagnose():
             except Exception as e:
                 error = f"Error analyzing image: {e}"
 
-    return render_template("index.html", result=result, error=error, notes=notes)
+    return render_template(
+        "index.html",
+        result=result,
+        error=error,
+        notes=notes,
+        languages=SUPPORTED_LANGUAGES,
+        selected_lang=selected_lang,
+    )
 
 
 if __name__ == "__main__":
