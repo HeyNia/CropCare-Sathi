@@ -33,9 +33,15 @@ and respond ONLY in this exact JSON format, no extra text, no markdown fences:
 {{
   "crop_guess": "likely crop type, or 'unclear' if not identifiable",
   "diagnosis": "likely issue — disease, pest, nutrient deficiency, or 'appears healthy'",
+  "severity": "low" | "medium" | "high",
   "confidence_note": "one honest sentence on certainty — recommend expert follow-up if unsure",
   "regenerative_steps": ["low-cost, regenerative-agriculture-aligned step 1", "step 2", "step 3"]
 }}
+
+Severity guide:
+- "low": plant appears healthy, or only very minor/cosmetic issue, no urgent action needed
+- "medium": a real issue is present that should be addressed soon to prevent spread or worsening
+- "high": a serious issue that risks significant crop loss if not acted on quickly
 
 Farmer's notes: {notes}
 """

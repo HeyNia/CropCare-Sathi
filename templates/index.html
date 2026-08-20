@@ -43,8 +43,11 @@
   </form>
 
   {% if result %}
-  <article class="result-card">
-    <span class="badge">{{ result.crop_guess }}</span>
+  <article class="result-card severity-{{ result.severity }}">
+    <div class="result-top">
+      <span class="badge">{{ result.crop_guess }}</span>
+      <span class="severity-badge severity-badge-{{ result.severity }}">{{ result.severity }} urgency</span>
+    </div>
     <h3>{{ result.diagnosis }}</h3>
     <p class="confidence">{{ result.confidence_note }}</p>
     <h4>Recommended Steps</h4>
