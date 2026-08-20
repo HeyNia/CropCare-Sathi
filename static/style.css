@@ -10,6 +10,29 @@ body {
   max-width: 640px;
   margin: 0 auto;
   padding: 1.5rem 1rem 3rem;
+  position: relative;
+}
+
+.ui-lang-switcher {
+  position: absolute;
+  top: 1.25rem;
+  right: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.ui-lang-switcher .globe-icon {
+  font-size: 1rem;
+}
+.ui-lang-switcher select {
+  width: auto;
+  padding: 0.3rem 1.6rem 0.3rem 0.6rem;
+  font-size: 0.82rem;
+  height: auto;
+  margin: 0;
+  border-radius: 6px;
+  border: 1px solid var(--brand-light);
+  background-color: #fafffc;
 }
 
 header {
@@ -208,6 +231,22 @@ button[type=submit]:hover {
 }
 .result-card li {
   margin-bottom: 0.4rem;
+}
+
+.pdf-form {
+  margin-top: 1.25rem;
+}
+.pdf-btn {
+  background: white;
+  color: var(--brand-dark);
+  border: 1.5px solid var(--brand);
+  font-weight: 600;
+  font-size: 0.9rem;
+  padding: 0.5rem 1rem;
+  width: auto;
+}
+.pdf-btn:hover {
+  background: var(--brand-bg);
 }
 
 /* Error state */
