@@ -25,6 +25,11 @@ A multilingual AI-powered crop-health assistant that analyzes plant images, prov
 
 </div>
 
+## 🌐 Live Demo
+
+Try CropCare Sathi here:
+
+[Open Live Prototype](https://cropcare-sathi.onrender.com)
 ---
 
 ## ✨ What is CropCare Sathi?
