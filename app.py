@@ -1,327 +1,617 @@
-"""
-AgriN Crop Diagnosis & Advisory — MVP
-Track: Sustainability/Resilience (AgriN) | Build with AI: Code for Communities
-
-Setup:
-  1. pip install flask google-generativeai pillow
-  2. Get a free API key at https://aistudio.google.com
-  3. export GEMINI_API_KEY="your-key-here"
-  4. python app.py
-  5. Open http://localhost:8080
-"""
-
+import io
 import os
-import json
-from flask import Flask, request, render_template, Response
-import google.generativeai as genai
-from PIL import Image
-from fpdf import FPDF
+import re
+import time
+import uuid
+import sqlite3
+from datetime import datetime, timezone
+from pathlib import Path
 
-# --- Config ---
-API_KEY = os.environ.get("GEMINI_API_KEY")
-if not API_KEY:
-    raise RuntimeError("Set GEMINI_API_KEY environment variable first.")
+from flask import (
+    Flask,
+    abort,
+    flash,
+    g,
+    redirect,
+    render_template,
+    request,
+    send_file,
+    send_from_directory,
+    url_for,
+)
+from werkzeug.utils import secure_filename
 
-genai.configure(api_key=API_KEY)
-model = genai.GenerativeModel("gemini-3.6-flash")
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
+try:
+    from google import genai
+    from google.genai import types
+except ImportError:
+    genai = None
+    types = None
+
+try:
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import cm
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+except ImportError:
+    A4 = None
+
+
+BASE_DIR = Path(__file__).resolve().parent
+UPLOAD_FOLDER = BASE_DIR / "static" / "uploads"
+DATABASE_PATH = BASE_DIR / "agrin_history.db"
+
+ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
+ALLOWED_MIME_TYPES = {"image/png", "image/jpeg", "image/webp"}
+MAX_UPLOAD_SIZE = 8 * 1024 * 1024
+GEMINI_MODEL = "gemini-3.1-flash-lite"
+GEMINI_RETRY_ATTEMPTS = 3
+
+UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
 
 app = Flask(__name__)
-
-DIAGNOSIS_PROMPT = """You are an agricultural advisor helping a smallholder farmer who has
-limited access to expert consultation. Analyze the crop image below (and any notes provided)
-and respond ONLY in this exact JSON format, no extra text, no markdown fences:
-
-{{
-  "crop_guess": "likely crop type, or 'unclear' if not identifiable",
-  "diagnosis": "likely issue — disease, pest, nutrient deficiency, or 'appears healthy'",
-  "severity": "low" | "medium" | "high",
-  "confidence_note": "one honest sentence on certainty — recommend expert follow-up if unsure",
-  "regenerative_steps": ["low-cost, regenerative-agriculture-aligned step 1", "step 2", "step 3"],
-  "diagnosis_en": "same as 'diagnosis' but always in English",
-  "confidence_note_en": "same as 'confidence_note' but always in English",
-  "regenerative_steps_en": ["same as 'regenerative_steps' but always in English"]
-}}
-
-Severity guide:
-- "low": plant appears healthy, or only very minor/cosmetic issue, no urgent action needed
-- "medium": a real issue is present that should be addressed soon to prevent spread or worsening
-- "high": a serious issue that risks significant crop loss if not acted on quickly
-
-IMPORTANT: Write crop_guess, diagnosis, confidence_note, and regenerative_steps in {language}.
-Write diagnosis_en, confidence_note_en, and regenerative_steps_en in English, always, regardless
-of {language} — these are used for a downloadable report and must stay in English for
-compatibility. Keep the JSON keys themselves in English exactly as shown above. Use simple,
-clear language a farmer with no technical background can understand.
-
-Farmer's notes: {notes}
-"""
-
-SUPPORTED_LANGUAGES = {
-    "en": "English",
-    # Indian regional languages
-    "hi": "Hindi",
-    "bn": "Bengali",
-    "ta": "Tamil",
-    "te": "Telugu",
-    "mr": "Marathi",
-    "gu": "Gujarati",
-    "kn": "Kannada",
-    "ml": "Malayalam",
-    "pa": "Punjabi",
-    "or": "Odia",
-    "as": "Assamese",
-    "ur": "Urdu",
-    # BRICS + major world languages
-    "pt": "Portuguese",
-    "ru": "Russian",
-    "zh": "Chinese (Simplified)",
-    "af": "Afrikaans",
-    "zu": "Zulu",
-    "sw": "Swahili",
-    "es": "Spanish",
-    "fr": "French",
-    "ar": "Arabic",
-    "id": "Indonesian",
-}
-
-# UI text translations for the page shell (headings, buttons, labels).
-# Not every language has a full UI translation yet — languages without one
-# fall back to English for the interface text (the AI diagnosis itself still
-# works in all SUPPORTED_LANGUAGES regardless of UI language).
-UI_STRINGS = {
-    "en": {
-        "title": "AgriN Crop Advisor",
-        "subtitle": "Upload a photo of your crop for an instant AI diagnosis and regenerative treatment advice — built for smallholder farmers across BRICS nations.",
-        "upload_hint": "Tap to upload a photo",
-        "upload_hint_small": "Leaf, stem, or affected area works best",
-        "language_label": "Response language",
-        "notes_label": "Any notes? (optional)",
-        "notes_placeholder": "e.g. leaves turning yellow for a week, seen after heavy rain...",
-        "submit_button": "Diagnose Crop",
-        "loading_text": "Analyzing your crop photo...",
-        "recommended_steps": "Recommended Steps",
-        "urgency_suffix": "urgency",
-        "pdf_button": "Download PDF Report (English)",
-        "footer": "Built for Build with AI: Code for Communities — AgriN Track · Powered by Gemini",
-    },
-    "hi": {
-        "title": "एग्रीएन फसल सलाहकार",
-        "subtitle": "तुरंत एआई निदान और पुनर्योजी उपचार सलाह के लिए अपनी फसल की फोटो अपलोड करें — ब्रिक्स देशों के छोटे किसानों के लिए बनाया गया।",
-        "upload_hint": "फोटो अपलोड करने के लिए टैप करें",
-        "upload_hint_small": "पत्ती, तना, या प्रभावित हिस्सा सबसे अच्छा काम करता है",
-        "language_label": "उत्तर की भाषा",
-        "notes_label": "कोई टिप्पणी? (वैकल्पिक)",
-        "notes_placeholder": "जैसे: एक सप्ताह से पत्तियां पीली हो रही हैं, तेज़ बारिश के बाद देखा गया...",
-        "submit_button": "फसल की जांच करें",
-        "loading_text": "आपकी फसल की फोटो का विश्लेषण हो रहा है...",
-        "recommended_steps": "सुझाए गए कदम",
-        "urgency_suffix": "तात्कालिकता",
-        "pdf_button": "पीडीएफ रिपोर्ट डाउनलोड करें (अंग्रेज़ी में)",
-        "footer": "Build with AI: Code for Communities — AgriN ट्रैक के लिए बनाया गया · Gemini द्वारा संचालित",
-    },
-    "pt": {
-        "title": "Consultor Agrícola AgriN",
-        "subtitle": "Envie uma foto da sua plantação para um diagnóstico instantâneo por IA e conselhos de tratamento regenerativo — feito para pequenos agricultores dos países do BRICS.",
-        "upload_hint": "Toque para enviar uma foto",
-        "upload_hint_small": "Folha, caule ou área afetada funciona melhor",
-        "language_label": "Idioma da resposta",
-        "notes_label": "Alguma observação? (opcional)",
-        "notes_placeholder": "ex: folhas amarelando há uma semana, visto após chuva forte...",
-        "submit_button": "Diagnosticar Plantação",
-        "loading_text": "Analisando a foto da sua plantação...",
-        "recommended_steps": "Passos Recomendados",
-        "urgency_suffix": "urgência",
-        "pdf_button": "Baixar Relatório em PDF (Inglês)",
-        "footer": "Feito para Build with AI: Code for Communities — Trilha AgriN · Desenvolvido com Gemini",
-    },
-    "es": {
-        "title": "Asesor de Cultivos AgriN",
-        "subtitle": "Sube una foto de tu cultivo para un diagnóstico instantáneo con IA y consejos de tratamiento regenerativo — creado para pequeños agricultores de las naciones BRICS.",
-        "upload_hint": "Toca para subir una foto",
-        "upload_hint_small": "Una hoja, tallo o área afectada funciona mejor",
-        "language_label": "Idioma de respuesta",
-        "notes_label": "¿Alguna nota? (opcional)",
-        "notes_placeholder": "ej: hojas amarillentas desde hace una semana, visto tras lluvia fuerte...",
-        "submit_button": "Diagnosticar Cultivo",
-        "loading_text": "Analizando la foto de tu cultivo...",
-        "recommended_steps": "Pasos Recomendados",
-        "urgency_suffix": "urgencia",
-        "pdf_button": "Descargar Informe PDF (Inglés)",
-        "footer": "Creado para Build with AI: Code for Communities — Categoría AgriN · Impulsado por Gemini",
-    },
-    "fr": {
-        "title": "Conseiller Agricole AgriN",
-        "subtitle": "Téléchargez une photo de votre culture pour un diagnostic IA instantané et des conseils de traitement régénératif — conçu pour les petits agriculteurs des nations BRICS.",
-        "upload_hint": "Touchez pour télécharger une photo",
-        "upload_hint_small": "Une feuille, une tige ou une zone affectée fonctionne mieux",
-        "language_label": "Langue de réponse",
-        "notes_label": "Des notes? (facultatif)",
-        "notes_placeholder": "ex: feuilles jaunissantes depuis une semaine, observé après de fortes pluies...",
-        "submit_button": "Diagnostiquer la Culture",
-        "loading_text": "Analyse de la photo de votre culture...",
-        "recommended_steps": "Étapes Recommandées",
-        "urgency_suffix": "urgence",
-        "pdf_button": "Télécharger le Rapport PDF (Anglais)",
-        "footer": "Conçu pour Build with AI: Code for Communities — Catégorie AgriN · Propulsé par Gemini",
-    },
-    "ru": {
-        "title": "Агроконсультант AgriN",
-        "subtitle": "Загрузите фото вашей культуры для мгновенной диагностики ИИ и рекомендаций по регенеративному лечению — создано для мелких фермеров стран БРИКС.",
-        "upload_hint": "Нажмите, чтобы загрузить фото",
-        "upload_hint_small": "Лучше всего подходит лист, стебель или поражённый участок",
-        "language_label": "Язык ответа",
-        "notes_label": "Есть заметки? (необязательно)",
-        "notes_placeholder": "напр.: листья желтеют неделю, замечено после сильного дождя...",
-        "submit_button": "Диагностировать Культуру",
-        "loading_text": "Анализ фото вашей культуры...",
-        "recommended_steps": "Рекомендуемые Шаги",
-        "urgency_suffix": "срочность",
-        "pdf_button": "Скачать PDF-отчёт (на английском)",
-        "footer": "Создано для Build with AI: Code for Communities — Направление AgriN · На основе Gemini",
-    },
-    "zh": {
-        "title": "AgriN 作物顾问",
-        "subtitle": "上传作物照片,获取即时 AI 诊断和再生治疗建议 — 专为金砖国家小农户打造。",
-        "upload_hint": "点击上传照片",
-        "upload_hint_small": "叶片、茎部或受影响区域效果最佳",
-        "language_label": "回复语言",
-        "notes_label": "备注(可选)",
-        "notes_placeholder": "例如:叶片发黄一周,暴雨后发现...",
-        "submit_button": "诊断作物",
-        "loading_text": "正在分析您的作物照片...",
-        "recommended_steps": "建议步骤",
-        "urgency_suffix": "紧急程度",
-        "pdf_button": "下载 PDF 报告(英文)",
-        "footer": "为 Build with AI: Code for Communities — AgriN 赛道打造 · 由 Gemini 提供支持",
-    },
-    "ar": {
-        "title": "مستشار المحاصيل AgriN",
-        "subtitle": "قم بتحميل صورة لمحصولك للحصول على تشخيص فوري بالذكاء الاصطناعي ونصائح علاج تجديدية — مصمم لصغار المزارعين في دول البريكس.",
-        "upload_hint": "اضغط لتحميل صورة",
-        "upload_hint_small": "الورقة أو الساق أو المنطقة المصابة تعمل بشكل أفضل",
-        "language_label": "لغة الرد",
-        "notes_label": "أي ملاحظات؟ (اختياري)",
-        "notes_placeholder": "مثال: الأوراق تصفرّ منذ أسبوع، لوحظ بعد مطر غزير...",
-        "submit_button": "تشخيص المحصول",
-        "loading_text": "جاري تحليل صورة محصولك...",
-        "recommended_steps": "الخطوات الموصى بها",
-        "urgency_suffix": "درجة الإلحاح",
-        "pdf_button": "تحميل تقرير PDF (بالإنجليزية)",
-        "footer": "تم إنشاؤه لبرنامج Build with AI: Code for Communities — مسار AgriN · بدعم من Gemini",
-    },
-}
+app.config.update(
+    SECRET_KEY=os.getenv("FLASK_SECRET_KEY", "change-this-secret-key-before-production"),
+    DATABASE=str(DATABASE_PATH),
+    UPLOAD_FOLDER=str(UPLOAD_FOLDER),
+    MAX_CONTENT_LENGTH=MAX_UPLOAD_SIZE,
+)
 
 
-def get_ui_strings(lang_code):
-    return UI_STRINGS.get(lang_code, UI_STRINGS["en"])
+def utc_now():
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+
+def allowed_file(filename):
+    return (
+        "." in filename
+        and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+    )
+
+
+def get_db():
+    if "db" not in g:
+        g.db = sqlite3.connect(app.config["DATABASE"])
+        g.db.row_factory = sqlite3.Row
+    return g.db
+
+
+@app.teardown_appcontext
+def close_db(error=None):
+    db = g.pop("db", None)
+    if db is not None:
+        db.close()
+
+
+def init_db():
+    db = sqlite3.connect(app.config["DATABASE"])
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS diagnoses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            image_filename TEXT NOT NULL,
+            original_filename TEXT NOT NULL,
+            language TEXT NOT NULL DEFAULT 'English',
+            ui_language TEXT NOT NULL DEFAULT 'en',
+            notes TEXT DEFAULT '',
+            diagnosis TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+    db.commit()
+    db.close()
+
+
+def save_diagnosis(
+    image_filename,
+    original_filename,
+    language,
+    ui_language,
+    notes,
+    diagnosis,
+):
+    db = get_db()
+    cursor = db.execute(
+        """
+        INSERT INTO diagnoses (
+            image_filename,
+            original_filename,
+            language,
+            ui_language,
+            notes,
+            diagnosis,
+            created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            image_filename,
+            original_filename,
+            language,
+            ui_language,
+            notes,
+            diagnosis,
+            utc_now(),
+        ),
+    )
+    db.commit()
+    return cursor.lastrowid
+
+
+def get_diagnosis_or_404(diagnosis_id):
+    record = get_db().execute(
+        "SELECT * FROM diagnoses WHERE id = ?",
+        (diagnosis_id,),
+    ).fetchone()
+
+    if record is None:
+        abort(404)
+
+    return record
+
+
+def extract_status(diagnosis_text):
+    text = diagnosis_text.lower()
+
+    healthy_words = [
+        "healthy",
+        "no disease",
+        "no visible disease",
+        "no obvious disease",
+        "no significant disease",
+    ]
+    urgent_words = [
+        "urgent",
+        "severe",
+        "critical",
+        "immediately",
+        "rapidly spreading",
+    ]
+
+    if any(word in text for word in urgent_words):
+        return "Needs urgent attention"
+
+    if any(word in text for word in healthy_words):
+        return "Likely healthy"
+
+    return "Possible plant issue"
+
+
+def build_prompt(language, notes):
+    extra_notes = notes.strip() if notes else "No additional farmer notes were provided."
+
+    return f"""
+You are CropCare Sathi, a careful agricultural crop-health assistant.
+
+Analyze the supplied crop or plant image. Respond in {language}.
+Use simple, farmer-friendly language. Do not claim certainty from an image alone.
+If image quality or plant visibility is insufficient, say so clearly and explain what
+additional photograph or information is needed.
+
+Farmer notes:
+{extra_notes}
+
+Use exactly these headings:
+
+Plant / crop observed
+Visible symptoms
+Likely condition
+Confidence
+What may be causing it
+Recommended next steps
+Prevention
+When to contact a local agriculture expert
+
+Safety rules:
+- Clearly distinguish observations from possible diagnoses.
+- Do not invent pesticide doses, brand names, or chemical concentrations.
+- Prefer low-risk integrated pest-management actions first.
+- Mention that treatment choices must follow local labels, local regulations,
+  crop stage, and advice from a qualified agricultural professional.
+- If the plant looks severely affected, state that the farmer should seek local
+  agricultural-extension or plant-pathology advice promptly.
+""".strip()
+
+
+def diagnose_with_gemini(image_bytes, mime_type, language, notes):
+    api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+
+    if genai is None or types is None:
+        raise RuntimeError(
+            "Gemini SDK is unavailable. Install the google-genai package first."
+        )
+
+    if not api_key:
+        raise RuntimeError(
+            "Gemini API key is missing. Set GEMINI_API_KEY in your environment."
+        )
+
+    client = genai.Client(api_key=api_key)
+    prompt = build_prompt(language, notes)
+    last_error = None
+
+    for attempt in range(1, GEMINI_RETRY_ATTEMPTS + 1):
+        try:
+            response = client.models.generate_content(
+                model=GEMINI_MODEL,
+                contents=[
+                    types.Part.from_text(text=prompt),
+                    types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
+                ],
+            )
+
+            result = (getattr(response, "text", None) or "").strip()
+
+            if not result:
+                raise RuntimeError(
+                    "Gemini returned an empty response. Please try again."
+                )
+
+            return result
+
+        except Exception as error:
+            last_error = error
+
+            if attempt < GEMINI_RETRY_ATTEMPTS:
+                time.sleep(2 ** (attempt - 1))
+
+    raise RuntimeError(
+        "The diagnosis service could not respond after several attempts. "
+        f"Please try again shortly. Details: {last_error}"
+    )
+
+
+def safe_pdf_text(value):
+    value = value or ""
+    value = value.replace("\x00", "")
+    return value.encode("latin-1", "replace").decode("latin-1")
+
+
+def diagnosis_to_pdf(record):
+    if A4 is None:
+        raise RuntimeError(
+            "PDF support is unavailable. Install reportlab to enable downloads."
+        )
+
+    pdf_buffer = io.BytesIO()
+    document = SimpleDocTemplate(
+        pdf_buffer,
+        pagesize=A4,
+        rightMargin=1.5 * cm,
+        leftMargin=1.5 * cm,
+        topMargin=1.5 * cm,
+        bottomMargin=1.5 * cm,
+        title=f"AgriN Diagnosis #{record['id']}",
+    )
+
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        "AgriNTitle",
+        parent=styles["Title"],
+        fontName="Helvetica-Bold",
+        fontSize=20,
+        leading=24,
+        spaceAfter=12,
+        textColor="#1B5E20",
+    )
+    heading_style = ParagraphStyle(
+        "AgriNHeading",
+        parent=styles["Heading2"],
+        fontName="Helvetica-Bold",
+        fontSize=12,
+        leading=15,
+        spaceBefore=10,
+        spaceAfter=5,
+        textColor="#1B5E20",
+    )
+    body_style = ParagraphStyle(
+        "AgriNBody",
+        parent=styles["BodyText"],
+        fontName="Helvetica",
+        fontSize=10,
+        leading=14,
+        spaceAfter=6,
+    )
+
+    diagnosis_html = safe_pdf_text(record["diagnosis"])
+    diagnosis_html = diagnosis_html.replace("&", "&amp;")
+    diagnosis_html = diagnosis_html.replace("<", "&lt;")
+    diagnosis_html = diagnosis_html.replace(">", "&gt;")
+    diagnosis_html = diagnosis_html.replace("\n", "<br/>")
+
+    notes = safe_pdf_text(record["notes"] or "No additional notes supplied.")
+    notes = notes.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    story = [
+        Paragraph("CropCare Sathi Diagnosis Report", title_style),
+        Paragraph(f"<b>Report ID:</b> #{record['id']}", body_style),
+        Paragraph(f"<b>Created:</b> {safe_pdf_text(record['created_at'])}", body_style),
+        Paragraph(
+            f"<b>Image:</b> {safe_pdf_text(record['original_filename'])}",
+            body_style,
+        ),
+        Paragraph(
+            f"<b>Requested diagnosis language:</b> {safe_pdf_text(record['language'])}",
+            body_style,
+        ),
+        Spacer(1, 8),
+        Paragraph("Farmer notes", heading_style),
+        Paragraph(notes, body_style),
+        Paragraph("Diagnosis", heading_style),
+        Paragraph(diagnosis_html, body_style),
+        Spacer(1, 10),
+        Paragraph(
+            "Important: This image-based result is informational and may not be a "
+            "definitive diagnosis. Confirm serious crop problems with a local "
+            "agriculture officer, extension worker, or qualified plant expert.",
+            body_style,
+        ),
+    ]
+
+    document.build(story)
+    pdf_buffer.seek(0)
+    return pdf_buffer
+
+
+@app.errorhandler(413)
+def file_too_large(error):
+    flash(
+        f"Image is too large. Please upload an image smaller than "
+        f"{MAX_UPLOAD_SIZE // (1024 * 1024)} MB.",
+        "error",
+    )
+    return redirect(url_for("index"))
 
 
 @app.route("/", methods=["GET", "POST"])
-def diagnose():
-    result = None
-    error = None
-    notes = ""
-    # UI language: controls page text (buttons, labels), set via top-right switcher
-    ui_lang = request.args.get("ui_lang") or request.form.get("ui_lang", "en")
-    # Diagnosis language: controls the AI's response language, set via the form dropdown
-    selected_lang = request.args.get("lang", "en")
+def index():
+    if request.method == "GET":
+        return render_template("index.html")
 
-    if request.method == "POST":
-        notes = request.form.get("notes", "").strip()
-        selected_lang = request.form.get("language", "en")
-        language_name = SUPPORTED_LANGUAGES.get(selected_lang, "English")
-        image_file = request.files.get("image")
+    image = request.files.get("image")
+    language = (request.form.get("language") or "English").strip()
+    notes = (request.form.get("notes") or "").strip()
+    ui_language = (request.form.get("ui_lang") or "en").strip()
 
-        if image_file:
-            try:
-                img = Image.open(image_file.stream)
-                prompt = DIAGNOSIS_PROMPT.format(notes=notes or "none provided", language=language_name)
-                response = model.generate_content([prompt, img])
-                text = response.text.strip()
-                if text.startswith("```"):
-                    text = text.strip("`").replace("json", "", 1).strip()
-                result = json.loads(text)
-            except Exception as e:
-                error = f"Error analyzing image: {e}"
+    if image is None or image.filename == "":
+        flash("Please select a plant or crop image before submitting.", "error")
+        return redirect(url_for("index"))
+
+    if not allowed_file(image.filename):
+        flash("Use a PNG, JPG, JPEG, or WEBP image file.", "error")
+        return redirect(url_for("index"))
+
+    if image.mimetype not in ALLOWED_MIME_TYPES:
+        flash("The uploaded file does not appear to be a supported image.", "error")
+        return redirect(url_for("index"))
+
+    image_bytes = image.read()
+
+    if not image_bytes:
+        flash("The uploaded image file is empty.", "error")
+        return redirect(url_for("index"))
+
+    if len(image_bytes) > MAX_UPLOAD_SIZE:
+        flash(
+            f"Image is too large. Please upload an image smaller than "
+            f"{MAX_UPLOAD_SIZE // (1024 * 1024)} MB.",
+            "error",
+        )
+        return redirect(url_for("index"))
+
+    original_filename = secure_filename(image.filename) or "plant-image"
+    extension = original_filename.rsplit(".", 1)[1].lower()
+    stored_filename = f"{uuid.uuid4().hex}.{extension}"
+    image_path = UPLOAD_FOLDER / stored_filename
+
+    try:
+        image_path.write_bytes(image_bytes)
+        diagnosis = diagnose_with_gemini(
+            image_bytes=image_bytes,
+            mime_type=image.mimetype,
+            language=language,
+            notes=notes,
+        )
+
+        diagnosis_id = save_diagnosis(
+            image_filename=stored_filename,
+            original_filename=original_filename,
+            language=language,
+            ui_language=ui_language,
+            notes=notes,
+            diagnosis=diagnosis,
+        )
+
+        return redirect(url_for("diagnosis_detail", diagnosis_id=diagnosis_id))
+
+    except Exception as error:
+        if image_path.exists():
+            image_path.unlink()
+
+        flash(str(error), "error")
+        return redirect(url_for("index"))
+
+
+@app.route("/dashboard")
+def dashboard():
+    db = get_db()
+
+    total_diagnoses = db.execute(
+        "SELECT COUNT(*) AS total FROM diagnoses"
+    ).fetchone()["total"]
+
+    recent_diagnoses = db.execute(
+        """
+        SELECT id, image_filename, original_filename, language, diagnosis, created_at
+        FROM diagnoses
+        ORDER BY id DESC
+        LIMIT 5
+        """
+    ).fetchall()
+
+    all_diagnoses = db.execute(
+        "SELECT diagnosis FROM diagnoses ORDER BY id DESC"
+    ).fetchall()
+
+    status_counts = {
+        "Likely healthy": 0,
+        "Possible plant issue": 0,
+        "Needs urgent attention": 0,
+    }
+
+    for row in all_diagnoses:
+        status_counts[extract_status(row["diagnosis"])] += 1
+
+    return render_template(
+        "dashboard.html",
+        total_diagnoses=total_diagnoses,
+        recent_diagnoses=recent_diagnoses,
+        status_counts=status_counts,
+    )
+
+
+@app.route("/diagnosis/<int:diagnosis_id>")
+def diagnosis_detail(diagnosis_id):
+    record = get_diagnosis_or_404(diagnosis_id)
 
     return render_template(
         "index.html",
-        result=result,
-        error=error,
-        notes=notes,
-        languages=SUPPORTED_LANGUAGES,
-        selected_lang=selected_lang,
-        ui_lang=ui_lang,
-        ui=get_ui_strings(ui_lang),
+        record=record,
+        diagnosis=record["diagnosis"],
+        diagnosis_status=extract_status(record["diagnosis"]),
+        uploaded_image_url=url_for("uploaded_file", filename=record["image_filename"]),
     )
 
 
-def to_latin1_safe(text):
-    """Strip any characters fpdf2's base font can't render, as a safety net."""
-    return text.encode("latin-1", "replace").decode("latin-1")
+@app.route("/history")
+def history():
+    search = (request.args.get("q") or "").strip()
+    db = get_db()
+
+    if search:
+        records = db.execute(
+            """
+            SELECT *
+            FROM diagnoses
+            WHERE original_filename LIKE ?
+               OR diagnosis LIKE ?
+               OR notes LIKE ?
+               OR language LIKE ?
+            ORDER BY id DESC
+            """,
+            (f"%{search}%", f"%{search}%", f"%{search}%", f"%{search}%"),
+        ).fetchall()
+    else:
+        records = db.execute(
+            "SELECT * FROM diagnoses ORDER BY id DESC"
+        ).fetchall()
+
+    return render_template(
+        "history.html",
+        records=records,
+        search=search,
+    )
 
 
-@app.route("/download-pdf", methods=["POST"])
-def download_pdf():
-    crop = to_latin1_safe(request.form.get("crop_en", ""))
-    diagnosis = to_latin1_safe(request.form.get("diagnosis_en", ""))
-    severity = request.form.get("severity", "")
-    confidence = to_latin1_safe(request.form.get("confidence_en", ""))
-    steps_raw = request.form.get("steps_en", "[]")
+@app.route("/history/<int:diagnosis_id>")
+def history_detail(diagnosis_id):
+    record = get_diagnosis_or_404(diagnosis_id)
+
+    return render_template(
+        "history_detail.html",
+        record=record,
+        diagnosis_status=extract_status(record["diagnosis"]),
+        uploaded_image_url=url_for(
+            "uploaded_file",
+            filename=record["image_filename"]
+        ),
+    )
+
+@app.route("/knowledge")
+def knowledge():
+    knowledge_items = [
+        {
+            "title": "Take a useful crop photo",
+            "content": (
+                "Use daylight, keep the affected leaf or plant in focus, and include "
+                "both close and wider views when possible. Avoid blurry images."
+            ),
+        },
+        {
+            "title": "Check both sides of leaves",
+            "content": (
+                "Many pests, eggs, fungal growth, and leaf spots are easier to see on "
+                "the underside of leaves."
+            ),
+        },
+        {
+            "title": "Separate observation from diagnosis",
+            "content": (
+                "Yellowing, spots, curling, or wilting can have several causes. Check "
+                "watering, nutrient conditions, weather, pests, and disease signs."
+            ),
+        },
+        {
+            "title": "Use integrated pest management",
+            "content": (
+                "Start with field sanitation, removal of severely affected plant parts, "
+                "monitoring, resistant varieties where available, and locally approved guidance."
+            ),
+        },
+        {
+            "title": "Seek local help for severe cases",
+            "content": (
+                "Rapid spread, major crop loss, or unusual symptoms should be checked "
+                "by a local agriculture officer, extension worker, or plant expert."
+            ),
+        },
+    ]
+
+    return render_template(
+        "knowledge.html",
+        knowledge_items=knowledge_items,
+    )
+
+
+@app.route("/uploads/<path:filename>")
+def uploaded_file(filename):
+    return send_from_directory(app.config["UPLOAD_FOLDER"], filename)
+
+
+@app.route("/download/<int:diagnosis_id>")
+def download_pdf(diagnosis_id):
+    record = get_diagnosis_or_404(diagnosis_id)
+
     try:
-        steps = [to_latin1_safe(s) for s in json.loads(steps_raw)]
-    except Exception:
-        steps = []
+        pdf_buffer = diagnosis_to_pdf(record)
+    except RuntimeError as error:
+        flash(str(error), "error")
+        return redirect(url_for("history_detail", diagnosis_id=diagnosis_id))
 
-    pdf = FPDF()
-    pdf.add_page()
+    download_name = f"CropCare Sathi Diagnosis-{diagnosis_id}.pdf"
 
-    pdf.set_font("Helvetica", "B", 16)
-    pdf.set_text_color(45, 106, 79)  # brand green
-    pdf.cell(0, 12, "AgriN Crop Diagnosis Report", ln=True)
-
-    pdf.set_font("Helvetica", "", 10)
-    pdf.set_text_color(100, 100, 100)
-    pdf.cell(0, 6, "Build with AI: Code for Communities - AgriN Track", ln=True)
-    pdf.ln(6)
-
-    pdf.set_text_color(0, 0, 0)
-    pdf.set_font("Helvetica", "B", 12)
-    pdf.cell(0, 8, f"Crop: {crop}", ln=True)
-    pdf.cell(0, 8, f"Urgency: {severity.upper()}", ln=True)
-    pdf.ln(2)
-
-    pdf.set_font("Helvetica", "B", 13)
-    pdf.multi_cell(0, 8, f"Diagnosis: {diagnosis}")
-    pdf.ln(1)
-
-    pdf.set_font("Helvetica", "I", 10)
-    pdf.set_text_color(90, 90, 90)
-    pdf.multi_cell(0, 6, confidence)
-    pdf.ln(4)
-
-    pdf.set_text_color(0, 0, 0)
-    pdf.set_font("Helvetica", "B", 12)
-    pdf.cell(0, 8, "Recommended Steps:", ln=True)
-    pdf.set_font("Helvetica", "", 11)
-    for step in steps:
-        pdf.multi_cell(0, 7, f"- {step}")
-    pdf.ln(6)
-
-    pdf.set_font("Helvetica", "I", 8)
-    pdf.set_text_color(140, 140, 140)
-    pdf.multi_cell(0, 5, "This is an AI-generated preliminary assessment (shown here in English "
-                          "for compatibility). Consult a local agricultural extension officer "
-                          "for confirmation, especially for high-urgency cases.")
-
-    pdf_bytes = bytes(pdf.output())
-    return Response(
-        pdf_bytes,
+    return send_file(
+        pdf_buffer,
         mimetype="application/pdf",
-        headers={"Content-Disposition": "attachment; filename=crop_diagnosis_report.pdf"},
+        as_attachment=True,
+        download_name=download_name,
     )
 
+
+@app.context_processor
+def inject_template_utilities():
+    return {
+        "current_year": datetime.now().year,
+        "diagnosis_status": extract_status,
+    }
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    init_db()
+    app.run(host="0.0.0.0", port=8080, debug=True)

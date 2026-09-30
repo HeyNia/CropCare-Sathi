@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta
+        name="description"
+        content="CropCare Sathi dashboard showing saved crop diagnosis reports and crop-health summary."
+    >
+    <title>Dashboard | CropCare Sathi </title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}"
+    >
+</head>
+
+<body>
+    <header class="site-header">
+        <div class="container nav-container">
+            <a class="brand" href="{{ url_for('index') }}" aria-label="CropCare Sathi home">
+                <span class="brand-mark" aria-hidden="true">🌱</span>
+                <span>CropCare Sathi</span>
+            </a>
+
+            <nav class="main-nav" aria-label="Main navigation">
+                <a href="{{ url_for('index') }}" class="nav-link">Diagnosis</a>
+                <a href="{{ url_for('dashboard') }}" class="nav-link active">Dashboard</a>
+                <a href="{{ url_for('history') }}" class="nav-link">History</a>
+                <a href="{{ url_for('knowledge') }}" class="nav-link">Knowledge Base</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="dashboard-page section">
+        <div class="container">
+            <div class="page-heading dashboard-heading">
+                <div>
+                    <p class="eyebrow">Crop health overview</p>
+                    <h1>CropCare Sathi dashboard</h1>
+                    <p class="page-description">
+                        Review your saved crop-image analyses and quickly identify reports
+                        that may need further attention.
+                    </p>
+                </div>
+
+                <a class="button button-primary" href="{{ url_for('index') }}">
+                    <span>New diagnosis</span>
+                    <span aria-hidden="true">+</span>
+                </a>
+            </div>
+
+            <section class="dashboard-stats" aria-label="Diagnosis summary">
+                <article class="stat-card stat-card-total">
+                    <div class="stat-icon" aria-hidden="true">📋</div>
+                    <div>
+                        <p class="stat-label">Total diagnoses</p>
+                        <p class="stat-value">{{ total_diagnoses }}</p>
+                        <p class="stat-description">Saved image analysis reports</p>
+                    </div>
+                </article>
+
+                <article class="stat-card stat-card-healthy">
+                    <div class="stat-icon" aria-hidden="true">🌿</div>
+                    <div>
+                        <p class="stat-label">Likely healthy</p>
+                        <p class="stat-value">{{ status_counts["Likely healthy"] }}</p>
+                        <p class="stat-description">Reports with no clear issue detected</p>
+                    </div>
+                </article>
+
+                <article class="stat-card stat-card-possible">
+                    <div class="stat-icon" aria-hidden="true">🔎</div>
+                    <div>
+                        <p class="stat-label">Possible issues</p>
+                        <p class="stat-value">{{ status_counts["Possible plant issue"] }}</p>
+                        <p class="stat-description">Reports that need observation</p>
+                    </div>
+                </article>
+
+                <article class="stat-card stat-card-urgent">
+                    <div class="stat-icon" aria-hidden="true">⚠️</div>
+                    <div>
+                        <p class="stat-label">Urgent attention</p>
+                        <p class="stat-value">{{ status_counts["Needs urgent attention"] }}</p>
+                        <p class="stat-description">Reports with more serious signs</p>
+                    </div>
+                </article>
+            </section>
+
+            <section class="dashboard-content-grid">
+                <article class="dashboard-main-card card">
+                    <div class="card-heading dashboard-card-heading">
+                        <div>
+                            <p class="eyebrow">Latest reports</p>
+                            <h2>Recent diagnoses</h2>
+                        </div>
+
+                        {% if recent_diagnoses %}
+                            <a class="text-link" href="{{ url_for('history') }}">
+                                View all history →
+                            </a>
+                        {% endif %}
+                    </div>
+
+                    {% if recent_diagnoses %}
+                        <div class="recent-diagnoses-list">
+                            {% for diagnosis in recent_diagnoses %}
+                                <a
+                                    class="recent-diagnosis-item"
+                                    href="{{ url_for('history_detail', diagnosis_id=diagnosis['id']) }}"
+                                >
+                                    <img
+                                        class="recent-image"
+                                        src="{{ url_for('uploaded_file', filename=diagnosis['image_filename']) }}"
+                                        alt="Crop image from report #{{ diagnosis['id'] }}"
+                                    >
+
+                                    <div class="recent-details">
+                                        <div class="recent-title-row">
+                                            <h3>Diagnosis #{{ diagnosis["id"] }}</h3>
+
+                                            {% set status = diagnosis_status(diagnosis["diagnosis"]) %}
+                                            <span
+                                                class="status-badge status-{{ status|lower|replace(' ', '-') }}"
+                                            >
+                                                {{ status }}
+                                            </span>
+                                        </div>
+
+                                        <p class="recent-file-name">
+                                            {{ diagnosis["original_filename"] }}
+                                        </p>
+
+                                        <p class="recent-meta">
+                                            {{ diagnosis["language"] }} · {{ diagnosis["created_at"] }}
+                                        </p>
+                                    </div>
+
+                                    <span class="recent-arrow" aria-hidden="true">→</span>
+                                </a>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="empty-state">
+                            <div class="empty-state-icon" aria-hidden="true">🌱</div>
+                            <h3>No diagnosis reports yet</h3>
+                            <p>
+                                Upload a clear crop or plant image to create your first
+                                AI-assisted crop-health report.
+                            </p>
+                            <a class="button button-primary" href="{{ url_for('index') }}">
+                                Analyze your first image
+                            </a>
+                        </div>
+                    {% endif %}
+                </article>
+
+                <aside class="dashboard-side-column">
+                    <article class="dashboard-side-card card">
+                        <p class="eyebrow">Quick guide</p>
+                        <h2>Get more useful results</h2>
+
+                        <ul class="dashboard-tips-list">
+                            <li>
+                                <span aria-hidden="true">✓</span>
+                                Upload sharp photos in daylight.
+                            </li>
+                            <li>
+                                <span aria-hidden="true">✓</span>
+                                Include the crop name in your notes.
+                            </li>
+                            <li>
+                                <span aria-hidden="true">✓</span>
+                                Mention how long symptoms have existed.
+                            </li>
+                            <li>
+                                <span aria-hidden="true">✓</span>
+                                Check both sides of affected leaves.
+                            </li>
+                        </ul>
+
+                        <a class="text-link" href="{{ url_for('knowledge') }}">
+                            Open knowledge base →
+                        </a>
+                    </article>
+
+                    <article class="dashboard-side-card card support-card">
+                        <span class="support-icon" aria-hidden="true">👨‍🌾</span>
+                        <h2>Severe or spreading symptoms?</h2>
+                        <p>
+                            An image-based result is a starting point. Contact a local
+                            agriculture officer, extension worker, or plant expert for
+                            confirmation and treatment advice.
+                        </p>
+                    </article>
+                </aside>
+            </section>
+        </div>
+    </main>
+
+    <footer class="site-footer">
+        <div class="container footer-container">
+            <a class="brand footer-brand" href="{{ url_for('index') }}">
+                <span class="brand-mark" aria-hidden="true">🌱</span>
+                <span>CropCare Sathi</span>
+            </a>
+
+            <p>
+                AI-assisted crop-health guidance for farmers and learners.
+                © {{ current_year }} CropCare Sathi.
+            </p>
+
+            <div class="footer-links">
+                <a href="{{ url_for('knowledge') }}">Knowledge Base</a>
+                <a href="{{ url_for('history') }}">History</a>
+            </div>
+        </div>
+    </footer>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

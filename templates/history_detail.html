@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Diagnosis #{{ record["id"] }} | CropCare Sathi</title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}"
+    >
+</head>
+
+<body>
+    <header class="site-header">
+        <div class="container nav-container">
+            <a class="brand" href="{{ url_for('index') }}">
+                <span class="brand-mark" aria-hidden="true">🌱</span>
+                <span>CropCare Sathi</span>
+            </a>
+
+            <nav class="main-nav" aria-label="Main navigation">
+                <a href="{{ url_for('index') }}" class="nav-link">Diagnosis</a>
+                <a href="{{ url_for('dashboard') }}" class="nav-link">Dashboard</a>
+                <a href="{{ url_for('history') }}" class="nav-link active">History</a>
+                <a href="{{ url_for('knowledge') }}" class="nav-link">Knowledge Base</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="result-page section">
+        <div class="container">
+            <p class="detail-back-link">
+                <a class="text-link" href="{{ url_for('history') }}">
+                    ← Back to diagnosis history
+                </a>
+            </p>
+
+            <div class="page-heading result-heading">
+                <div>
+                    <p class="eyebrow">Saved crop diagnosis report</p>
+                    <h1>Diagnosis #{{ record["id"] }}</h1>
+                    <p class="page-description">
+                        Saved on {{ record["created_at"] }}
+                    </p>
+                </div>
+
+                <div class="result-actions">
+                    <a class="button button-outline" href="{{ url_for('index') }}">
+                        New diagnosis
+                    </a>
+
+                    <a
+                        class="button button-primary"
+                        href="{{ url_for('download_pdf', diagnosis_id=record['id']) }}"
+                    >
+                        Download PDF
+                    </a>
+                </div>
+            </div>
+
+            <section
+                class="status-banner status-{{ diagnosis_status|lower|replace(' ', '-') }}"
+            >
+                <span class="status-dot" aria-hidden="true"></span>
+
+                <div>
+                    <strong>{{ diagnosis_status }}</strong>
+                    <p>Diagnosis language: {{ record["language"] }}</p>
+                </div>
+            </section>
+
+            <section class="diagnosis-layout">
+                <aside class="image-panel card">
+                    <div class="card-heading">
+                        <div>
+                            <p class="eyebrow">Uploaded image</p>
+                            <h2>Crop photo</h2>
+                        </div>
+                    </div>
+
+                    <img
+                        class="result-image"
+                        src="{{ uploaded_image_url }}"
+                        alt="Uploaded crop image: {{ record['original_filename'] }}"
+                    >
+
+                    <dl class="image-details">
+                        <div>
+                            <dt>Image file</dt>
+                            <dd>{{ record["original_filename"] }}</dd>
+                        </div>
+
+                        <div>
+                            <dt>Report ID</dt>
+                            <dd>#{{ record["id"] }}</dd>
+                        </div>
+
+                        <div>
+                            <dt>Created</dt>
+                            <dd>{{ record["created_at"] }}</dd>
+                        </div>
+
+                        {% if record["notes"] %}
+                            <div>
+                                <dt>Farmer notes</dt>
+                                <dd>{{ record["notes"] }}</dd>
+                            </div>
+                        {% endif %}
+                    </dl>
+                </aside>
+
+                <article class="diagnosis-panel card">
+                    <div class="card-heading">
+                        <div>
+                            <p class="eyebrow">CropCare Sathi analysis</p>
+                            <h2>Crop-health assessment</h2>
+                        </div>
+                    </div>
+
+                    <div class="diagnosis-text">
+                        {{ record["diagnosis"] | replace('\n', '<br>') | safe }}
+                    </div>
+
+                    <div class="medical-disclaimer">
+                        <span aria-hidden="true">ℹ</span>
+                        <p>
+                            This is an AI-assisted, image-based result. For severe,
+                            rapidly spreading, or valuable crop problems, confirm the
+                            condition with a local agriculture officer or plant expert.
+                        </p>
+                    </div>
+                </article>
+            </section>
+
+            <section class="report-actions-card card">
+                <div>
+                    <p class="eyebrow">Save your report</p>
+                    <h2>Download this diagnosis</h2>
+                    <p>
+                        Keep the PDF report for future reference or to share with an
+                        agriculture expert.
+                    </p>
+                </div>
+
+                <div class="report-actions">
+                    <a
+                        class="button button-primary"
+                        href="{{ url_for('download_pdf', diagnosis_id=record['id']) }}"
+                    >
+                        Download PDF report
+                    </a>
+
+                    <a class="button button-secondary" href="{{ url_for('history') }}">
+                        Back to history
+                    </a>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <footer class="site-footer">
+        <div class="container footer-container">
+            <a class="brand footer-brand" href="{{ url_for('index') }}">
+                <span class="brand-mark" aria-hidden="true">🌱</span>
+                <span>CropCare Sathi</span>
+            </a>
+
+            <p>
+                AI-assisted crop-health guidance for farmers and learners.
+                © {{ current_year }} CropCare Sathi.
+            </p>
+
+            <div class="footer-links">
+                <a href="{{ url_for('knowledge') }}">Knowledge Base</a>
+                <a href="{{ url_for('history') }}">History</a>
+            </div>
+        </div>
+    </footer>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta
+        name="description"
+        content="CropCare Sathi knowledge base with practical crop-health and plant-image guidance."
+    >
+    <title>Knowledge Base | CropCare Sathi</title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}"
+    >
+</head>
+
+<body>
+    <header class="site-header">
+        <div class="container nav-container">
+            <a class="brand" href="{{ url_for('index') }}" aria-label="CropCare Sathi home">
+                <span class="brand-mark" aria-hidden="true">🌱</span>
+                <span>CropCare Sathi</span>
+            </a>
+
+            <nav class="main-nav" aria-label="Main navigation">
+                <a href="{{ url_for('index') }}" class="nav-link">Diagnosis</a>
+                <a href="{{ url_for('dashboard') }}" class="nav-link">Dashboard</a>
+                <a href="{{ url_for('history') }}" class="nav-link">History</a>
+                <a href="{{ url_for('knowledge') }}" class="nav-link active">Knowledge Base</a>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        <section class="knowledge-hero">
+            <div class="container knowledge-hero-content">
+                <p class="eyebrow">Learn before you treat</p>
+                <h1>Crop-health knowledge base</h1>
+                <p>
+                    Use these practical guidelines to take better plant photos, observe
+                    visible symptoms, and decide when to seek help from a local agriculture expert.
+                </p>
+
+                <div class="knowledge-hero-actions">
+                    <a class="button button-primary" href="{{ url_for('index') }}">
+                        Analyze a crop image
+                    </a>
+                    <a class="button button-secondary" href="{{ url_for('history') }}">
+                        View diagnosis history
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <section class="knowledge-page section">
+            <div class="container">
+                <div class="section-heading">
+                    <p class="eyebrow">Practical guidance</p>
+                    <h2>Useful crop observation habits</h2>
+                    <p class="page-description">
+                        AI image analysis is more useful when your photo and field notes
+                        include clear, relevant details.
+                    </p>
+                </div>
+
+                <div class="knowledge-grid">
+                    {% for item in knowledge_items %}
+                        <article class="knowledge-card card">
+                            <div class="knowledge-card-icon" aria-hidden="true">
+                                {% if loop.index == 1 %}
+                                    📷
+                                {% elif loop.index == 2 %}
+                                    🍃
+                                {% elif loop.index == 3 %}
+                                    🔍
+                                {% elif loop.index == 4 %}
+                                    🌾
+                                {% else %}
+                                    👨‍🌾
+                                {% endif %}
+                            </div>
+
+                            <span class="knowledge-number">
+                                {{ "%02d"|format(loop.index) }}
+                            </span>
+
+                            <h3>{{ item["title"] }}</h3>
+                            <p>{{ item["content"] }}</p>
+                        </article>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+
+        <section class="photo-guide-section section">
+            <div class="container photo-guide-grid">
+                <div class="photo-guide-content">
+                    <p class="eyebrow">Image quality matters</p>
+                    <h2>How to take a useful plant photo</h2>
+                    <p>
+                        A clear image helps CropCare Sathi identify visible patterns such as spots,
+                        yellowing, curling, holes, powdery growth, and wilting.
+                    </p>
+
+                    <ol class="photo-guide-list">
+                        <li>
+                            <span>1</span>
+                            Take the image in natural daylight when possible.
+                        </li>
+                        <li>
+                            <span>2</span>
+                            Keep the affected leaf, stem, fruit, or plant in focus.
+                        </li>
+                        <li>
+                            <span>3</span>
+                            Avoid dark, blurry, distant, or heavily filtered photos.
+                        </li>
+                        <li>
+                            <span>4</span>
+                            Capture both close-up symptoms and a wider plant view.
+                        </li>
+                        <li>
+                            <span>5</span>
+                            Add notes about crop name, rainfall, watering, pests, and timing.
+                        </li>
+                    </ol>
+                </div>
+
+                <div class="photo-guide-visual card">
+                    <div class="photo-guide-icon" aria-hidden="true">📸</div>
+                    <h3>Best image checklist</h3>
+
+                    <div class="checklist-item">
+                        <span aria-hidden="true">✓</span>
+                        <p>Good daylight</p>
+                    </div>
+
+                    <div class="checklist-item">
+                        <span aria-hidden="true">✓</span>
+                        <p>Visible symptoms in focus</p>
+                    </div>
+
+                    <div class="checklist-item">
+                        <span aria-hidden="true">✓</span>
+                        <p>Leaf, stem, or fruit clearly shown</p>
+                    </div>
+
+                    <div class="checklist-item">
+                        <span aria-hidden="true">✓</span>
+                        <p>Useful notes about the crop</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="warning-section">
+            <div class="container warning-container">
+                <div class="warning-icon" aria-hidden="true">⚠</div>
+
+                <div>
+                    <p class="eyebrow">Important reminder</p>
+                    <h2>When you should contact a local expert</h2>
+                    <p>
+                        Seek local agriculture-extension or plant-health support if symptoms
+                        spread rapidly, affect many plants, cause major wilting or crop loss,
+                        or appear after pesticide or fertilizer use. An image result should
+                        support—not replace—field inspection and local expert guidance.
+                    </p>
+                </div>
+
+                <a class="button button-outline warning-button" href="{{ url_for('index') }}">
+                    Start a diagnosis
+                </a>
+            </div>
+        </section>
+    </main>
+
+    <footer class="site-footer">
+        <div class="container footer-container">
+            <a class="brand footer-brand" href="{{ url_for('index') }}">
+                <span class="brand-mark" aria-hidden="true">🌱</span>
+                <span>CropCare Sathi</span>
+            </a>
+
+            <p>
+                AI-assisted crop-health guidance for farmers and learners.
+                © {{ current_year }} CropCare Sathi.
+            </p>
+
+            <div class="footer-links">
+                <a href="{{ url_for('knowledge') }}">Knowledge Base</a>
+                <a href="{{ url_for('history') }}">History</a>
+            </div>
+        </div>
+    </footer>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
