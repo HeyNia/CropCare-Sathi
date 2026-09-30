@@ -5,13 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta
         name="description"
-        content="AgriN uses AI image analysis to help identify visible crop and plant-health issues."
+        content="CropCare Sathi uses AI image analysis to help identify visible crop and plant-health issues."
     >
     <title>
         {% if record %}
-            Diagnosis #{{ record["id"] }} | AgriN
+            Diagnosis #{{ record["id"] }} | CropCare Sathi
         {% else %}
-            AgriN | AI Crop Health Assistant
+            CropCare Sathi | AI Crop Health Assistant
         {% endif %}
     </title>
 
@@ -24,9 +24,9 @@
 <body>
     <header class="site-header">
         <div class="container nav-container">
-            <a class="brand" href="{{ url_for('index') }}" aria-label="AgriN home">
+            <a class="brand" href="{{ url_for('index') }}" aria-label="CropCare Sathi home">
                 <span class="brand-mark" aria-hidden="true">🌱</span>
-                <span>AgriN</span>
+                <span>CropCare Sathi</span>
             </a>
 
             <nav class="main-nav" aria-label="Main navigation">
@@ -128,7 +128,7 @@
                         <article class="diagnosis-panel card">
                             <div class="card-heading">
                                 <div>
-                                    <p class="eyebrow">AgriN analysis</p>
+                                    <p class="eyebrow">CropCare Sathi analysis</p>
                                     <h2>Crop-health assessment</h2>
                                 </div>
                             </div>
@@ -166,7 +166,7 @@
                         <p class="eyebrow">AI-Powered Crop Support</p>
                         <h1>Understand visible crop problems faster.</h1>
                         <p class="hero-description">
-                            Upload a clear photo of a plant or crop. AgriN analyzes visible
+                            Upload a clear photo of a plant or crop. CropCare Sathi analyzes visible
                             symptoms and provides practical next steps in your preferred language.
                         </p>
 
@@ -283,7 +283,7 @@
                             </button>
 
                             <p class="form-notice">
-                                AgriN provides guidance from the image. Always verify major crop issues
+                                CropCare Sathi provides guidance from the image. Always verify major crop issues
                                 with a local agricultural professional.
                             </p>
                         </form>
@@ -295,7 +295,7 @@
                 <div class="container">
                     <div class="section-heading">
                         <p class="eyebrow">Simple process</p>
-                        <h2>How AgriN works</h2>
+                        <h2>How CropCare Sathi works</h2>
                     </div>
 
                     <div class="steps-grid">
@@ -351,12 +351,12 @@
         <div class="container footer-container">
             <a class="brand footer-brand" href="{{ url_for('index') }}">
                 <span class="brand-mark" aria-hidden="true">🌱</span>
-                <span>AgriN</span>
+                <span>CropCare Sathi</span>
             </a>
 
             <p>
                 AI-assisted crop-health guidance for farmers and learners.
-                © {{ current_year }} AgriN.
+                © {{ current_year }} CropCare Sathi.
             </p>
 
             <div class="footer-links">
